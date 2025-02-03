@@ -1,0 +1,673 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Exam Portal System</title>
+    <style>
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+        font-family: Arial, sans-serif;
+      }
+
+      body {
+        background-color: #f0f2f5;
+        padding: 20px;
+      }
+
+      .container {
+        max-width: 1000px;
+        margin: 0 auto;
+      }
+
+      .header {
+        background-color: #1a73e8;
+        color: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        text-align: center;
+      }
+
+      .section {
+        background-color: white;
+        padding: 20px;
+        border-radius: 8px;
+        margin-bottom: 20px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+
+      .form-group {
+        margin-bottom: 15px;
+      }
+
+      label {
+        display: block;
+        margin-bottom: 5px;
+        font-weight: bold;
+      }
+
+      input[type="text"],
+      input[type="password"],
+      textarea {
+        width: 100%;
+        padding: 8px;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        margin-bottom: 10px;
+      }
+
+      button {
+        background-color: #1a73e8;
+        color: white;
+        padding: 10px 20px;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 14px;
+        margin: 5px;
+      }
+
+      button:hover {
+        background-color: #1557b0;
+      }
+
+      .output {
+        background-color: #f8f9fa;
+        padding: 15px;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+        margin-top: 10px;
+        white-space: pre-wrap;
+        max-height: 500px;
+        overflow-y: auto;
+        font-family: monospace;
+      }
+
+      .answers-container {
+        display: flex;
+        gap: 10px;
+        margin-bottom: 10px;
+      }
+
+      .answers-input {
+        flex-grow: 1;
+      }
+
+      .test-data-button {
+        position: fixed;
+        bottom: 20px;
+        right: 20px;
+        z-index: 1000;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="container">
+      <div class="header">
+        <h1>Exam Portal System</h1>
+      </div>
+
+      <div class="section">
+        <h2>Register User</h2>
+        <div class="form-group">
+          <label for="regUsername">Username:</label>
+          <input type="text" id="regUsername" />
+          <label for="regPassword">Password:</label>
+          <input type="password" id="regPassword" />
+          <button onclick="handleRegister()">Register</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Login</h2>
+        <div class="form-group">
+          <label for="loginUsername">Username:</label>
+          <input type="text" id="loginUsername" />
+          <label for="loginPassword">Password:</label>
+          <input type="password" id="loginPassword" />
+          <button onclick="handleLogin()">Login</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Submit Answers</h2>
+        <div class="form-group">
+          <label for="submitUsername">Username:</label>
+          <input type="text" id="submitUsername" />
+          <div id="answersContainer">
+            <div class="answers-container">
+              <input
+                type="text"
+                class="answers-input"
+                placeholder="Enter answer"
+              />
+            </div>
+          </div>
+          <button onclick="addAnswerField()">Add Another Answer</button>
+          <button onclick="handleSubmitAnswers()">Submit Answers</button>
+        </div>
+      </div>
+
+      <div class="section">
+        <h2>Detect Cheating</h2>
+        <button onclick="handleDetectCheating()">Analyze Submissions</button>
+        <div class="output" id="consoleOutput"></div>
+      </div>
+    </div>
+
+    <button onclick="addTestData()" class="test-data-button">
+      Add Test Data
+    </button>
+
+    <script>
+      class DSU {
+        constructor(n) {
+          this.parent = Array(n)
+            .fill()
+            .map((_, i) => i);
+          this.rank = Array(n).fill(1);
+        }
+
+        find(x) {
+          if (this.parent[x] !== x) {
+            this.parent[x] = this.find(this.parent[x]);
+          }
+          return this.parent[x];
+        }
+
+        unionSets(x, y) {
+          const rootX = this.find(x);
+          const rootY = this.find(y);
+
+          if (rootX !== rootY) {
+            if (this.rank[rootX] > this.rank[rootY]) {
+              this.parent[rootY] = rootX;
+            } else if (this.rank[rootX] < this.rank[rootY]) {
+              this.parent[rootX] = rootY;
+            } else {
+              this.parent[rootY] = rootX;
+              this.rank[rootX]++;
+            }
+          }
+        }
+      }
+
+      class ExamPortal {
+        constructor(similarityThreshold = 0.5, answerSimilarityThreshold = 0.6) {
+          this.users = new Map();
+          this.usernames = [];
+          this.similarityThreshold = similarityThreshold;  
+          this.answerSimilarityThreshold = answerSimilarityThreshold;
+        }
+      
+        registerUser(username, password) {
+          if (this.users.has(username)) {
+            return false;
+          }
+          this.users.set(username, {
+            username,
+            password,
+            answers: [],
+            totalTimeTaken: 0,
+          });
+          this.usernames.push(username);
+          return true;
+        }
+      
+        loginUser(username, password) {
+          const user = this.users.get(username);
+          if (user && user.password === password) {
+            return true;
+          }
+          return false;
+        }
+      
+        submitAnswers(username, answers, timeTaken) {
+          const user = this.users.get(username);
+          if (user) {
+            user.answers = answers.map((answer) => this.preprocessAnswer(answer));
+            user.totalTimeTaken = timeTaken;
+            return true;
+          }
+          return false;
+        }
+      
+        preprocessAnswer(answer) {
+          return answer
+            .trim()
+            .toLowerCase()
+            .replace(/[.,!?;:]/g, "")
+            .replace(/\s+/g, " ");
+        }
+      
+        getSignificantWords(answer) {
+          const commonWords = new Set([
+            "a", "an", "the", "and", "or", "but", "in", "on", "at", "to", "for", "of",
+            "with", "by", "from", "up", "about", "into", "over", "after", "is", "are",
+            "was", "were", "be", "been", "being", "have", "has", "had", "do", "does",
+            "did", "will", "would", "shall", "should", "may", "might", "must", "can",
+            "could", "i", "you", "he", "she", "it", "we", "they", "this", "that",
+            "these", "those"
+          ]);
+      
+          return answer.split(" ").filter(word => !commonWords.has(word) && word.length > 1);
+        }
+      
+        calculateJaccardSimilarity(words1, words2) {
+          const set1 = new Set(words1);
+          const set2 = new Set(words2);
+          
+          const intersection = new Set([...set1].filter(word => set2.has(word)));
+          const union = new Set([...set1, ...set2]);
+          
+          return intersection.size / union.size;
+        }
+      
+        calculateSequenceSimilarity(words1, words2) {
+          const m = words1.length;
+          const n = words2.length;
+          const dp = Array(m + 1).fill().map(() => Array(n + 1).fill(0));
+      
+          for (let i = 1; i <= m; i++) {
+            for (let j = 1; j <= n; j++) {
+              if (words1[i - 1] === words2[j - 1]) {
+                dp[i][j] = dp[i - 1][j - 1] + 1;
+              } else {
+                dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
+              }
+            }
+          }
+      
+          const lcsLength = dp[m][n];
+          return (2 * lcsLength) / (m + n);
+        }
+      
+        calculateAnswerSimilarity(answer1, answer2) {
+          const words1 = this.getSignificantWords(answer1);
+          const words2 = this.getSignificantWords(answer2);
+      
+          if (words1.length === 0 || words2.length === 0) {
+            return 0;
+          }
+      
+          const jaccardSim = this.calculateJaccardSimilarity(words1, words2);
+          const sequenceSim = this.calculateSequenceSimilarity(words1, words2);
+      
+          const similarity = (jaccardSim * 0.6) + (sequenceSim * 0.4);
+          
+          return similarity;
+        }
+      
+        findBestMatchForAnswer(answer, otherAnswers) {
+          let bestMatch = {
+            answer: '',
+            similarity: 0,
+            details: {
+              commonWords: [],
+              differentWords: []
+            }
+          };
+      
+          for (const otherAnswer of otherAnswers) {
+            const similarity = this.calculateAnswerSimilarity(answer, otherAnswer);
+            
+            if (similarity > bestMatch.similarity) {
+              const words1 = this.getSignificantWords(answer);
+              const words2 = this.getSignificantWords(otherAnswer);
+              const commonWords = words1.filter(word => words2.includes(word));
+              const differentWords = words1
+                .filter(word => !words2.includes(word))
+                .concat(words2.filter(word => !words1.includes(word)));
+      
+              bestMatch = {
+                answer: otherAnswer,
+                similarity: similarity,
+                details: {
+                  commonWords,
+                  differentWords
+                }
+              };
+            }
+          }
+      
+          return bestMatch;
+        }
+      
+        findSimilarAnswers(answers1, answers2) {
+          let similarPairs = [];
+      
+          for (let i = 0; i < answers1.length; i++) {
+            const ans1 = answers1[i];
+            const bestMatch = this.findBestMatchForAnswer(ans1, answers2);
+            similarPairs.push({
+              answer1: ans1,
+              answer2: bestMatch.answer,
+              similarity: bestMatch.similarity,
+              details: bestMatch.details
+            });
+          }
+      
+          return similarPairs;
+        }
+      
+        calculateSimilarityRatio(answers1, answers2) {
+          if (answers1.length === 0 || answers2.length === 0) return 0;
+      
+          let totalSimilarity = 0;
+          const maxAnswers = Math.max(answers1.length, answers2.length);
+      
+          // Calculate similarities in both directions and take the higher value for each answer
+          for (let i = 0; i < maxAnswers; i++) {
+            let maxSimilarity = 0;
+            
+            if (i < answers1.length) {
+              const ans1 = answers1[i];
+              // Find best match for this answer in answers2
+              const bestMatch = this.findBestMatchForAnswer(ans1, answers2);
+              maxSimilarity = Math.max(maxSimilarity, bestMatch.similarity);
+            }
+            
+            if (i < answers2.length) {
+              const ans2 = answers2[i];
+              // Find best match for this answer in answers1
+              const bestMatch = this.findBestMatchForAnswer(ans2, answers1);
+              maxSimilarity = Math.max(maxSimilarity, bestMatch.similarity);
+            }
+      
+            totalSimilarity += maxSimilarity;
+          }
+      
+          return totalSimilarity / maxAnswers;
+        }
+      
+        detectCheating() {
+          const n = this.usernames.length;
+          if (n === 0) {
+            return "No users in the system.";
+          }
+      
+          const dsu = new DSU(n);
+          let debug = `Current Settings:\n`;
+          debug += `- Overall Similarity Threshold: ${(this.similarityThreshold * 100).toFixed(1)}%\n`;
+          debug += `- Answer Similarity Threshold: ${(this.answerSimilarityThreshold * 100).toFixed(1)}%\n\n`;
+          debug += "Current Submissions:\n";
+      
+          this.usernames.forEach((username) => {
+            const user = this.users.get(username);
+            debug += `${username}: ${JSON.stringify(user.answers)}\n`;
+          });
+          debug += "\n";
+      
+          let similarityMatrix = [];
+          let similarityDetails = [];
+      
+          for (let i = 0; i < n; i++) {
+            similarityMatrix[i] = [];
+            for (let j = 0; j < n; j++) {
+              if (i === j) {
+                similarityMatrix[i][j] = 1.0;
+                continue;
+              }
+      
+              const user1 = this.users.get(this.usernames[i]);
+              const user2 = this.users.get(this.usernames[j]);
+      
+              const similarity = this.calculateSimilarityRatio(
+                user1.answers,
+                user2.answers
+              );
+              similarityMatrix[i][j] = similarity;
+      
+              if (i < j && similarity >= this.similarityThreshold) {
+                const similarPairs = this.findSimilarAnswers(user1.answers, user2.answers);
+                
+                debug += `\nHigh similarity (${(similarity * 100).toFixed(1)}%) found between ${user1.username} and ${user2.username}:\n`;
+                similarPairs.forEach((pair) => {
+                  debug += `- ${(pair.similarity * 100).toFixed(1)}% similar:\n`;
+                  debug += `  "${pair.answer1}" ↔ "${pair.answer2}"\n`;
+                  debug += `  Common significant words: ${pair.details.commonWords.join(", ")}\n`;
+                  debug += `  Different words: ${pair.details.differentWords.join(", ")}\n`;
+                });
+      
+                similarityDetails.push({
+                  user1: user1.username,
+                  user2: user2.username,
+                  similarity: similarity,
+                  pairs: similarPairs
+                });
+      
+                dsu.unionSets(i, j);
+              }
+            }
+          }
+      
+          // Generate similarity matrix output
+          debug += "\nSimilarity Matrix:\n";
+          debug += "        " + this.usernames.map(u => u.padEnd(8)).join(" ") + "\n";
+          for (let i = 0; i < n; i++) {
+            debug += this.usernames[i].padEnd(8) + " ";
+            debug += similarityMatrix[i].map(s => (s * 100).toFixed(1).padEnd(7) + "%").join(" ") + "\n";
+          }
+          debug += "\n";
+      
+          // Create clusters
+          const clusters = new Map();
+          for (let i = 0; i < n; i++) {
+            const root = dsu.find(i);
+            if (!clusters.has(root)) {
+              clusters.set(root, {
+                users: new Set(),
+                similarities: []
+              });
+            }
+            clusters.get(root).users.add(this.usernames[i]);
+          }
+      
+          // Add similarity details to clusters
+          similarityDetails.forEach((detail) => {
+            const root = dsu.find(this.usernames.indexOf(detail.user1));
+            clusters.get(root).similarities.push(detail);
+          });
+      
+          // Generate final output
+          let output = debug + "Suspicious clusters detected:\n";
+          let cheatingDetected = false;
+          let clusterNumber = 1;
+      
+          clusters.forEach((clusterInfo) => {
+            if (clusterInfo.users.size > 1) {
+              cheatingDetected = true;
+              output += `\nCluster ${clusterNumber++}:\n`;
+              output += `Users: ${Array.from(clusterInfo.users).join(", ")}\n\n`;
+      
+              output += "Similar answers in this cluster:\n";
+              clusterInfo.similarities.forEach((detail) => {
+                output += `\n${detail.user1} ↔ ${detail.user2} (${(detail.similarity * 100).toFixed(1)}% overall similarity):\n`;
+                detail.pairs.forEach((pair) => {
+                  output += `- ${(pair.similarity * 100).toFixed(1)}% similar:\n`;
+                  output += `  "${pair.answer1}" ↔ "${pair.answer2}"\n`;
+                  output += `  Common significant words: ${pair.details.commonWords.join(", ")}\n`;
+                  output += `  Different words: ${pair.details.differentWords.join(", ")}\n`;
+                });
+              });
+            }
+          });
+      
+          if (!cheatingDetected) {
+            output += "\nNo suspicious patterns detected.\n";
+          }
+      
+          return output;
+        }
+      
+        setSimilarityThreshold(threshold) {
+          if (threshold >= 0 && threshold <= 1) {
+            this.similarityThreshold = threshold;
+            return true;
+          }
+          return false;
+        }
+      
+        setAnswerSimilarityThreshold(threshold) {
+          if (threshold >= 0 && threshold <= 1) {
+            this.answerSimilarityThreshold = threshold;
+            return true;
+          }
+          return false;
+        }
+      } 
+
+      // Initialize the portal
+      const portal = new ExamPortal();
+
+      function addTestData() {
+        // Register test users
+        portal.registerUser("student1", "pass123");
+        portal.registerUser("student2", "pass456");
+        portal.registerUser("student3", "pass789");
+        portal.registerUser("student4", "pass123");
+        portal.registerUser("student5", "pass123");
+        portal.registerUser("student6", "pass123");
+        portal.registerUser("student7", "pass123");
+
+        // Submit test answers
+        portal.submitAnswers(
+          "student1",
+          [
+            "Gravity pulls objects towards Earth and is one of the Four fundamental forces",
+            "Photosynthesis uses sunlight to generate food for the plants",
+          ],
+          300
+        );
+        portal.submitAnswers(
+          "student2",
+          [
+            "Gravity pulls objects towards Earth",
+            "The water cycle recycles water and is carried out in 4 steps",
+          ],
+          300
+        );
+        portal.submitAnswers(
+          "student3",
+          ["Photosynthesis uses sunlight to produce food for the plants", "Cells divide to grow"],
+          300
+        );
+        portal.submitAnswers(
+          "student4",
+          ["Cells divide to grow in living organisms", "Gravity pulls objects towards Earth"],
+          300
+        );
+        portal.submitAnswers(
+          "student5",
+          [
+            "There is 70 percent of water on Earth",
+            "Energy is transferred in food chains",
+          ],
+          300
+        );
+        portal.submitAnswers(
+          "student6",
+          [
+            "Energy is transferred in food chains",
+            "Atoms are the basic units of matter",
+          ],
+          300
+        );
+        portal.submitAnswers(
+          "student7",
+          [
+            "Atoms are the basic units of matter",
+            "There is seventy percent of water on Earth",
+          ],
+          300
+        );
+
+        logToConsole(
+          "Test data added successfully! Click 'Analyze Submissions' to see results."
+        );
+      }
+
+      function logToConsole(message) {
+        const console = document.getElementById("consoleOutput");
+        console.innerHTML = message;
+      }
+
+      function handleRegister() {
+        const username = document.getElementById("regUsername").value;
+        const password = document.getElementById("regPassword").value;
+
+        if (username && password) {
+          const success = portal.registerUser(username, password);
+          if (success) {
+            logToConsole(`User ${username} registered successfully!`);
+            document.getElementById("regUsername").value = "";
+            document.getElementById("regPassword").value = "";
+          } else {
+            logToConsole(`Username ${username} already exists!`);
+          }
+        } else {
+          logToConsole("Please enter both username and password.");
+        }
+      }
+
+      function handleLogin() {
+        const username = document.getElementById("loginUsername").value;
+        const password = document.getElementById("loginPassword").value;
+
+        if (username && password) {
+          const success = portal.loginUser(username, password);
+          logToConsole(success ? "Login successful!" : "Invalid credentials.");
+          if (success) {
+            document.getElementById("loginUsername").value = "";
+            document.getElementById("loginPassword").value = "";
+          }
+        } else {
+          logToConsole("Please enter both username and password.");
+        }
+      }
+
+      function addAnswerField() {
+        const container = document.getElementById("answersContainer");
+        const newAnswerDiv = document.createElement("div");
+        newAnswerDiv.className = "answers-container";
+        newAnswerDiv.innerHTML = `
+                <input type="text" class="answers-input" placeholder="Enter answer">
+            `;
+        container.appendChild(newAnswerDiv);
+      }
+
+      function handleSubmitAnswers() {
+        const username = document.getElementById("submitUsername").value;
+        const answerInputs = document.querySelectorAll(".answers-input");
+        const answers = Array.from(answerInputs)
+          .map((input) => input.value)
+          .filter((answer) => answer.trim() !== "");
+
+        if (username && answers.length > 0) {
+          const success = portal.submitAnswers(username, answers, 300); // Using fixed time for simplicity
+          if (success) {
+            logToConsole(`Answers submitted for user ${username}`);
+            document.getElementById("submitUsername").value = "";
+            document.getElementById("answersContainer").innerHTML = `
+                        <div class="answers-container">
+                            <input type="text" class="answers-input" placeholder="Enter answer">
+                        </div>
+                    `;
+          } else {
+            logToConsole(`User ${username} not found. Please register first.`);
+          }
+        } else {
+          logToConsole("Please enter username and at least one answer.");
+        }
+      }
+
+      function handleDetectCheating() {
+        const result = portal.detectCheating();
+        logToConsole(result);
+      }
+    </script>
+  </body>
+</html>
